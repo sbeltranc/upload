@@ -20,9 +20,6 @@ COPY --from=builder /app/package.json .
 COPY --from=builder /app/bun.lock .
 COPY --from=builder /app/node_modules ./node_modules
 
-RUN useradd -m -u 1000 app && chown -R app:app /app
-USER app
-
 EXPOSE 3000
 
 ENTRYPOINT ["dumb-init", "--"]

@@ -22,7 +22,13 @@ export default defineNuxtConfig({
 
   nitro: {
     preset: 'bun',
-    serveStatic: false,
+    serveStatic: true,
+  },
+
+  vite: {
+    build: {
+      sourcemap: false,
+    },
   },
 
   css: ['~/assets/css/main.css'],
