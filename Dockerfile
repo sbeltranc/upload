@@ -23,4 +23,4 @@ COPY --from=builder /app/node_modules ./node_modules
 EXPOSE 3000
 
 ENTRYPOINT ["dumb-init", "--"]
-CMD ["bun", "run", "preview"]
+CMD ["bun", "run", "/app/.output/server/index.mjs"]
