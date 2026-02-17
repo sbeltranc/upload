@@ -12,15 +12,14 @@ async function parseMultipartData(
 	contentType: string
 ): Promise<Array<{ name: string; data: Buffer; filename?: string }>> {
 	try {
-		// Read with streaming to avoid array length limits
-		const chunks: Array<Buffer> = [];
-		const { req } = event.node;
-
-		for await (const chunk of req) {
-			chunks.push(Buffer.from(chunk));
+		const rawBody = await readRawBody(event);
+		if (!rawBody) {
+			throw new Error("No body received");
 		}
 
-		const rawBody = Buffer.concat(chunks);
+		const bodyBuffer = typeof rawBody === 'string' 
+			? Buffer.from(rawBody, 'utf-8')
+			: rawBody;
 
 		const [, boundary] = contentType.split("boundary=");
 		if (!boundary) {
@@ -30,8 +29,9 @@ async function parseMultipartData(
 			});
 		}
 
-		return parseMultipartManually(rawBody, boundary);
+		return parseMultipartManually(bodyBuffer, boundary);
 	} catch (error) {
+		console.log(error)
 		throw createError({
 			statusCode: 400,
 			message: "Failed to parse multipart form data"
@@ -49,30 +49,25 @@ function parseMultipartManually(
 
 	let pos = 0;
 	while (pos < body.length) {
-		// Find next boundary
 		const boundaryIndex = body.indexOf(boundaryBuffer, pos);
 		if (boundaryIndex === -1) {
 			break;
 		}
 
-		// Check if this is the end boundary
 		if (body.slice(boundaryIndex, boundaryIndex + endBoundary.length).equals(endBoundary)) {
 			break;
 		}
 
-		// Move past the boundary and CRLF
 		pos = boundaryIndex + boundaryBuffer.length;
 		if (body[pos] === 0x0d && body[pos + 1] === 0x0a) {
 			pos += 2;
 		}
 
-		// Find the end of headers (double CRLF)
 		const headersEnd = body.indexOf(Buffer.from("\r\n\r\n"), pos);
 		if (headersEnd === -1) {
 			break;
 		}
 
-		// Parse headers
 		const headersStr = body.subarray(pos, headersEnd).toString("utf-8");
 		const nameMatch = headersStr.match(/name="([^"]+)"/);
 		const filenameMatch = headersStr.match(/filename="([^"]+)"/);
@@ -82,12 +77,10 @@ function parseMultipartManually(
 			continue;
 		}
 
-		// Find the data start and end
 		const dataStart = headersEnd + 4;
 		const nextBoundary = body.indexOf(Buffer.from(`\r\n--${boundary}`), dataStart);
 		const dataEnd = nextBoundary === -1 ? body.length : nextBoundary;
 
-		// Extract the data
 		const data = body.slice(dataStart, dataEnd);
 
 		parts.push({
