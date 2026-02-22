@@ -55,17 +55,17 @@
                      {{ copiedIndex === index ? 'copied link' : file.status }}
                    </span>
                  </div>
-                 <p class="text-[10px] mt-0.5" :style="{ color: file.status === 'error' ? '#ef4444' : '#808080' }">
+                 <p class="text-[10px] mt-0.5 select-text" :style="{ color: file.status === 'error' ? '#ef4444' : '#808080' }">
                    <span v-if="file.status === 'error'">{{ file.error }}</span>
                    <span v-else>
                      {{ file.size }}
                      <span v-if="file.status === 'done'">
-                       · <a href="#" @click.prevent="copyToClipboard(file.url, index)" class="text-gray-400 hover:text-white transition-colors">{{ file.url }}</a>
+                       · <span class="text-gray-400 hover:text-white transition-colors cursor-pointer" @click="copyToClipboard(file.url, index)">{{ file.url }}</span>
                      </span>
                    </span>
                  </p>
                 <div v-if="file.status === 'uploading'" class="mt-2 h-1 bg-white/10 rounded-full overflow-hidden">
-                  <div class="h-full bg-white transition-all duration-300" :style="{ width: `${file.progress}%` }"></div>
+                  <div class="h-full bg-white transition-all duration-300 animate-progress-bar" :style="{ width: `${file.progress}%` }"></div>
                 </div>
               </div>
             </div>
@@ -111,8 +111,9 @@
           </svg>
           <input 
             v-model="urlInput"
+            ref="urlInputRef"
             type="text" 
-            placeholder="paste the link here" 
+            placeholder="paste the link here (or Ctrl+V to paste from clipboard)" 
             class="w-full pl-11 pr-4 py-3 bg-transparent border transition-all outline-none text-sm" 
             :style="{ 
               borderColor: (isValidUrl || !urlInput) ? '#333333' : '#dc2626',
@@ -120,6 +121,7 @@
               borderRadius: '16px'
             }"
             @keyup.enter="uploadFromUrl"
+            @paste.prevent="handlePaste"
           >
         </div>
         <div class="flex justify-end">
@@ -149,6 +151,7 @@
 
 <script setup lang="ts">
   const fileInput = ref<HTMLInputElement>();
+  const urlInputRef = ref<HTMLInputElement>();
   const urlInput = ref('');
   const isUploading = ref(false);
   const isDragging = ref(false);
@@ -266,6 +269,28 @@
     }
   };
 
+  const handlePaste = async (event: ClipboardEvent) => {
+    const items = event.clipboardData?.items;
+    if (!items) return;
+
+    // Check for files in clipboard (images, screenshots, etc)
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].kind === 'file') {
+        const file = items[i].getAsFile();
+        if (file) {
+          uploadFile(file);
+          return;
+        }
+      }
+    }
+
+    // Check for text (URLs)
+    const text = event.clipboardData?.getData('text');
+    if (text) {
+      urlInput.value = text;
+    }
+  };
+
   const closeQueueOnClickOutside = (event: MouseEvent) => {
     const target = event.target as HTMLElement;
     if (showQueue.value && !target.closest('[data-queue-button]') && !target.closest('[data-queue-popup]')) {
@@ -273,7 +298,10 @@
     }
   };
 
-  onMounted(() => document.addEventListener('click', closeQueueOnClickOutside));
+  onMounted(() => {
+    document.addEventListener('click', closeQueueOnClickOutside);
+    urlInputRef.value?.focus();
+  });
   onUnmounted(() => document.removeEventListener('click', closeQueueOnClickOutside));
 </script>
 
@@ -289,6 +317,16 @@
     to { opacity: 1; }
   }
   .animate-fade-in { animation: fadeIn 0.4s ease-out; }
+
+  @keyframes progressBar {
+    0% { background-position: 0% center; }
+    100% { background-position: 200% center; }
+  }
+  .animate-progress-bar {
+    background: linear-gradient(90deg, #ffffff, rgba(255,255,255,0.7), #ffffff);
+    background-size: 200% 100%;
+    animation: progressBar 1.5s ease-in-out infinite;
+  }
 
   .input-wrapper:focus-within input {
     border-color: #ffffff !important;
